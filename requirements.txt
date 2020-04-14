@@ -1,2 +1,9 @@
 requests
 pandas
+Pillow
+matplotlib
+plotly
+pystan
+numpy
+jupyter
+fbprophet
