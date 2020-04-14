@@ -7,3 +7,7 @@ pystan
 numpy
 jupyter
 fbprophet
+optuna
+fsspec
+seaborn
+sklearn
