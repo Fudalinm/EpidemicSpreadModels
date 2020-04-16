@@ -1,16 +1,139 @@
-import numpy as np
+""" Imports copied from kaggle unused are commented for now"""
+#from collections import defaultdict
+import datetime
+from datetime import timedelta
+# from dateutil.relativedelta import relativedelta
+# import math
+# import os
+# from pprint import pprint
+# import warnings
+# from fbprophet import Prophet
+# from fbprophet.plot import add_changepoints_to_plot
+# import pystan.misc # in model.fit(): AttributeError: module 'pystan' has no attribute 'misc'
 import matplotlib.pyplot as plt
-import matplotlib.cm as cm
+# import matplotlib.cm as cm
+import matplotlib
 from matplotlib.ticker import ScalarFormatter
+import numpy as np
 import optuna
 optuna.logging.disable_default_handler()
 import pandas as pd
+# import dask.dataframe as dd
 pd.plotting.register_matplotlib_converters()
 import seaborn as sns
 from scipy.integrate import solve_ivp
+# from sklearn.feature_extraction.text import TfidfVectorizer
+# from sklearn.cluster import KMeans
 
 #model base
 #model taken from https://www.kaggle.com/lisphilar/covid-19-data-with-sir-model/data
+
+def line_plot(df, title, xlabel=None, ylabel="Cases", h=None, v=None,
+              xlim=(None, None), ylim=(0, None), math_scale=True, y_logscale=False, y_integer=False):
+    """
+    Show chlonological change of the data.
+    """
+    ax = df.plot()
+    if math_scale:
+        ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+        ax.ticklabel_format(style="sci",  axis="y",scilimits=(0, 0))
+    if y_logscale:
+        ax.set_yscale("log")
+        if ylim[0] == 0:
+            ylim = (None, None)
+    if y_integer:
+        fmt = matplotlib.ticker.ScalarFormatter(useOffset=False)
+        fmt.set_scientific(False)
+        ax.yaxis.set_major_formatter(fmt)
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_xlim(*xlim)
+    ax.set_ylim(*ylim)
+    ax.legend(bbox_to_anchor=(1.02, 0), loc="lower left", borderaxespad=0)
+    if h is not None:
+        ax.axhline(y=h, color="black", linestyle="--")
+    if v is not None:
+        if not isinstance(v, list):
+            v = [v]
+        for value in v:
+            ax.axvline(x=value, color="black", linestyle="--")
+    plt.tight_layout()
+    plt.show()
+
+def select_area(ncov_df, group="Date", places=None, areas=None, excluded_places=None,
+                start_date=None, end_date=None, date_format="%d%b%Y"):
+    """
+    Select the records of the palces.
+    @ncov_df <pd.DataFrame>: the clean data
+    @group <str or None>: group-by the group, or not perform (None)
+    @area or @places:
+        if ncov_df has Country and Province column,
+            @places <list[tuple(<str/None>, <str/None>)]: the list of places
+                - if the list is None, all data will be used
+                - (str, str): both of country and province are specified
+                - (str, None): only country is specified
+                - (None, str) or (None, None): Error
+        if ncov_df has Area column,
+            @areas <list[str]>: the list of area names
+                - if the list is None, all data will be used
+                - eg. Japan
+                - eg. US/California
+    @excluded_places <list[tuple(<str/None>, <str/None>)]: the list of excluded places
+        - if the list is None, all data in the "places" will be used
+        - (str, str): both of country and province are specified
+        - (str, None): only country is specified
+        - (None, str) or (None, None): Error
+    @start_date <str>: the start date or None
+    @end_date <str>: the start date or None
+    @date_format <str>: format of @start_date and @end_date
+    @return <pd.DataFrame>: index and columns are as same as @ncov_df
+    """
+    # Select the target records
+    df = ncov_df.copy()
+    if (places is not None) or (excluded_places is not None):
+        c_series = df["Country"]
+        p_series = df["Province"]
+        if places is not None:
+            df = pd.DataFrame(columns=ncov_df.columns)
+            for (c, p) in places:
+                if c is None:
+                    raise Exception("places: Country must be specified!")
+                if p is None:
+                    new_df = ncov_df.loc[c_series == c, :]
+                else:
+                    new_df = ncov_df.loc[(c_series == c) & (p_series == p), :]
+                df = pd.concat([df, new_df], axis=0)
+        if excluded_places is not None:
+            for (c, p) in excluded_places:
+                if c is None:
+                    raise Exception("excluded_places: Country must be specified!")
+                if p is None:
+                    df = df.loc[c_series != c, :]
+                else:
+                    c_df = df.loc[(c_series == c) & (p_series != p), :]
+                    other_df = df.loc[c_series != c, :]
+                    df = pd.concat([c_df, other_df], axis=0)
+    if areas is not None:
+        df = df.loc[df["Area"].isin(areas), :]
+    if group is not None:
+        df = df.groupby(group).sum().reset_index()
+    # Range of date
+    if start_date is not None:
+        df = df.loc[df["Date"] >= datetime.strptime(start_date, date_format), :]
+    if end_date is not None:
+        df = df.loc[df["Date"] <= datetime.strptime(end_date, date_format), :]
+    # Only use the records with Confirmed > 0
+    try:
+        df = df.loc[df["Confirmed"] > 0, :]
+    except KeyError:
+        pass
+    # Aleart empty
+    if df.empty:
+        raise Exception("The output dataframe is empty!")
+    return df
+
+
 
 def create_target_df(ncov_df, total_population,
                      confirmed="Confirmed", recovered="Recovered", fatal="Deaths", **kwargs):
