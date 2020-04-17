@@ -1,6 +1,6 @@
 """ Imports copied from kaggle unused are commented for now"""
 #from collections import defaultdict
-import datetime
+from datetime import datetime
 from datetime import timedelta
 # from dateutil.relativedelta import relativedelta
 # import math
