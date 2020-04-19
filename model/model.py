@@ -777,7 +777,8 @@ class Scenario(object):
             growth = records.diff() / records.diff().shift(freq="D")
         else:
             records = self.predict(days=days_to_predict, show_figure=False)
-            records = records["Confirmed"].fillna("ffill")
+            # Confirmed -> Infected
+            records = records["Infected"].fillna("ffill")
             growth = records.diff() / records.diff().shift()
         growth = growth.replace(np.inf, np.nan).fillna(1.0)
         growth = growth.rolling(7).mean()[6:-1].round(2)
