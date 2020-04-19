@@ -874,7 +874,9 @@ class Scenario(object):
             raise Exception("Please use Scenario.set_phase() at first.")
         tau = None
         est_start_time = datetime.now()
+        max_number_of_tries = 3
         for num in self.phase_dict.keys():
+            number_of_tries = 0
             print(f"Hyperparameter estimation of {num} phase.")
             target_dict = self.phase_dict[num]
             while True:
@@ -889,6 +891,7 @@ class Scenario(object):
                     tau=tau
                 )
                 print("\tEstimator was created.")
+                number_of_tries += 1
                 # Run trials
                 while True:
                     print(f"\t\t{n_trials} trials", end=" ")
@@ -909,10 +912,13 @@ class Scenario(object):
                     elapsed = (datetime.now() - est_start_time_class).total_seconds()
                     if all(max_ok) or not all(monotonic_ok) or elapsed > 60 * 3:
                         break
-                #if all(monotonic_ok) and all(max_ok):
-                print("\tSuccessfully estimated.")
-                break
+                if all(monotonic_ok) and all(max_ok):
+                    print("\tSuccessfully estimated.")
+                    break
                 vals = [val for (val, ok) in zip(model.MONOTONIC, monotonic_ok) if not ok]
+                if (max_number_of_tries < number_of_tries):
+                    print("\excveeded max number of tires estimated.")
+                    break
                 try:
                     print(f"\tEstimator will be replaced because estimated {vals[0]} is non-monotonic.")
                 except IndexError:
